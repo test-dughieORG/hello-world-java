@@ -1,0 +1,96 @@
+name: SAST Ruleset Reconciliation
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Add or remove repository from ORG SAST ruleset"
+        required: true
+        type: choice
+        options:
+          - add
+          - remove
+
+permissions:
+  contents: read
+
+jobs:
+  sast-ruleset:
+    runs-on: ubuntu-latest
+
+    env:
+      GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
+      ORG: dexcomit
+      RULESET_ID: ${{ secrets.ORG_SAST_RULESET_ID }}
+      REPO: ${{ github.repository }}
+
+    steps:
+      - name: Fetch ruleset
+        run: |
+          set -e
+          curl -s \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/orgs/$ORG/rulesets/$RULESET_ID \
+            > ruleset.json
+
+      - name: Add repo to ORG SAST ruleset
+        if: github.event.inputs.action == 'add'
+        run: |
+          set -e
+
+          REPO_EXISTS=$(jq -r \
+            --arg repo "$REPO" \
+            '(.conditions.repository_name.include // []) | index($repo) != null' \
+            ruleset.json)
+
+          if [ "$REPO_EXISTS" = "true" ]; then
+            echo "ℹ️  Repository $REPO already exists in SAST ruleset"
+            exit 0
+          fi
+
+          jq \
+            --arg repo "$REPO" \
+            '
+            .conditions.repository_name.include =
+              ((.conditions.repository_name.include // []) + [$repo] | unique)
+            ' ruleset.json > updated.json
+
+          curl -X PATCH \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/orgs/$ORG/rulesets/$RULESET_ID \
+            --data @updated.json
+
+          echo "✅ Repository $REPO added to SAST ruleset"
+
+      - name: Remove repo from ORG SAST ruleset
+        if: github.event.inputs.action == 'remove'
+        run: |
+          set -e
+
+          REPO_EXISTS=$(jq -r \
+            --arg repo "$REPO" \
+            '(.conditions.repository_name.include // []) | index($repo) != null' \
+            ruleset.json)
+
+          if [ "$REPO_EXISTS" = "false" ]; then
+            echo "ℹ️  Repository $REPO is not in SAST ruleset"
+            exit 0
+          fi
+
+          jq \
+            --arg repo "$REPO" \
+            '
+            .conditions.repository_name.include =
+              ((.conditions.repository_name.include // [])
+               | map(select(. != $repo)))
+            ' ruleset.json > updated.json
+
+          curl -X PATCH \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/orgs/$ORG/rulesets/$RULESET_ID \
+            --data @updated.json
+
+          echo "✅ Repository $REPO removed from SAST ruleset"
