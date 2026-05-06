@@ -56,7 +56,7 @@ jobs:
               ((.conditions.repository_name.include // []) + [$repo] | unique)
             ' ruleset.json > updated.json
 
-          curl -X PATCH \
+          curl -X PUT \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/orgs/$ORG/rulesets/$RULESET_ID \
@@ -87,7 +87,7 @@ jobs:
                | map(select(. != $repo)))
             ' ruleset.json > updated.json
 
-          curl -X PATCH \
+          curl -X PUT \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/orgs/$ORG/rulesets/$RULESET_ID \
