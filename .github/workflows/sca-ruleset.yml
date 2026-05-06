@@ -20,7 +20,7 @@ jobs:
 
     env:
       GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
-      ORG: dexcomit
+      ORG: test-dughieORG
       RULESET_ID: ${{ secrets.ORG_SCA_RULESET_ID }}
       REPO: ${{ github.repository }}
 
